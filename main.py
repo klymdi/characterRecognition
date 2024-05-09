@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from icecream import ic
 
+# './data/{images}' - Dima`s dataset
+# './DmDataset/{images}' Donbas`s dataset
 image_dir = 'C:/PyProjects/neural_networks/CharacterRecognition/DmDataset/'
 
 images = []
@@ -11,6 +13,7 @@ labels = []
 
 for filename in os.listdir(image_dir):
     img_path = os.path.join(image_dir, filename)
+    # in "data" dataset ".png" format
     if img_path.endswith('.jpg'):
         img = Image.open(img_path).convert('L')
         img = img.resize((28, 28))
@@ -143,5 +146,7 @@ def draw_and_predict(image_path, W1, b1, W2, b2, W3, b3, labels):
     plt.show()
 
 
+# generate new label in "templateCreator.py" and put its path on image_to_predict
 image_to_predict = './predict/k.png'
 draw_and_predict(image_to_predict, W1, b1, W2, b2, W3, b3, labels_for_prediction)
+# kakovata huya recognising only "І" and "Є"
