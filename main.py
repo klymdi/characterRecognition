@@ -6,7 +6,9 @@ from icecream import ic
 
 # './data/{images}' - Dima`s dataset
 # './DmDataset/{images}' Donbas`s dataset
-image_dir = 'C:/PyProjects/neural_networks/CharacterRecognition/DmDataset/'
+image_dir = 'C:/PyProjects/neural_networks/CharacterRecognition/data/'
+
+alphabet = 'АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ'
 
 images = []
 labels = []
@@ -14,24 +16,22 @@ labels = []
 for filename in os.listdir(image_dir):
     img_path = os.path.join(image_dir, filename)
     # in "data" dataset ".png" format
-    if img_path.endswith('.jpg'):
+    if img_path.endswith('.png'):
         img = Image.open(img_path).convert('L')
         img = img.resize((28, 28))
         img_array = np.array(img)
         images.append(img_array)
         label = filename.split('-')[0]
-        labels.append(label)
+        label_enc = np.zeros(len(alphabet))
+        label_enc[alphabet.index(label)] = 1
+        labels.append(label_enc)
 
 images = np.array(images)
+ic(images.shape)
 labels = np.array(labels)
-labels = np.unique(labels)
-labels_for_prediction = labels
-encoded_labels = np.arange(labels.shape[0])
-one_hot_labels = np.eye(labels.shape[0])[encoded_labels]
+ic(labels.shape)
 
-
-images = images / 255.0
-images = images.reshape(images.shape[0], -1)
+images = images.reshape(images.shape[0], -1) / 255.0
 ic(images.shape)
 
 
@@ -39,81 +39,82 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def softmax(x):
-    exp_scores = np.exp(x)
-    return exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
-
-
-def cross_entropy_loss(y, y_pred):
-    m = y.shape[0]
-    y_int = y.astype(int)
-    log_prob = -np.log(y_pred[range(m), y_int])
-    loss = np.sum(log_prob) / m
-    return loss
+def cost(y_pred, y):
+    return np.square(y_pred - y)
 
 
 def backward_propagation(X, y, y_pred, a1, a2, b1, b2, b3, W1, W2, W3, learning_rate=0.01):
-    m = y.shape[0]
+    dz3 = (y_pred - y) * (y_pred * (1 - y_pred))
 
-    dz3 = y_pred.copy()
-    dz3[range(m), y.astype(int)] -= 1
-    dz3 /= m
+    dW3 = np.dot(dz3, a2.T)
+    db3 = dz3
 
-    dW3 = np.dot(a2.T, dz3)
-    db3 = np.sum(dz3, axis=0, keepdims=True)
+    dz2 = np.dot(W3.T, dz3) * (a1 * (1 - a1))
+    dW2 = np.dot(dz2, a1.T)
+    db2 = dz2
 
-    dz2 = np.dot(dz3, W3.T) * (a2 * (1 - a2))
-    dW2 = np.dot(a1.T, dz2)
-    db2 = np.sum(dz2, axis=0, keepdims=True)
+    dz1 = np.dot(W2.T, dz2) * (a2 * (1 - a2))
+    dW1 = np.dot(dz1, X.T)
+    db1 = dz1
 
-    dz1 = np.dot(dz2, W2.T) * (a1 * (1 - a1))
-    dW1 = np.dot(X.T, dz1)
-    db1 = np.sum(dz1, axis=0, keepdims=True)
-
-    W1 -= learning_rate * dW1
-    b1 -= learning_rate * db1
-    W2 -= learning_rate * dW2
-    b2 -= learning_rate * db2
-    W3 -= learning_rate * dW3
-    b3 -= learning_rate * db3
-
-    return W1, b1, W2, b2, W3, b3
+    return dW1, db1, dW2, db2, dW3, db3
 
 
-def train_network(X, y, W1, b1, W2, b2, W3, b3, num_epochs=500, learning_rate=0.1):
+def train_network(X, y, W1, b1, W2, b2, W3, b3, num_epochs=2501, learning_rate=0.1):
     for epoch in range(num_epochs):
-        z1 = np.dot(X, W1) + b1
-        a1 = sigmoid(z1)
+        W1_sum, b1_sum, W2_sum, b2_sum, W3_sum, b3_sum, loss_sum = 0, 0, 0, 0, 0, 0, 0
+        for y_example, X_example in zip(y, X):
+            y_example = y_example.reshape(len(y_example), 1)
+            X_example = X_example.reshape(len(X_example), 1)
 
-        z2 = np.dot(a1, W2) + b2
-        a2 = sigmoid(z2)
+            z1 = np.dot(W1, X_example) + b1
+            a1 = sigmoid(z1)
 
-        z3 = np.dot(a2, W3) + b3
-        y_pred = softmax(z3)
+            z2 = np.dot(W2, a1) + b2
+            a2 = sigmoid(z2)
 
-        loss = cross_entropy_loss(y, y_pred)
+            z3 = np.dot(W3, a2) + b3
+            y_pred = sigmoid(z3)
 
+            loss = cost(y_pred, y_example)
+            loss_sum += loss
+
+
+            dW1, db1, dW2, db2, dW3, db3 = backward_propagation(X_example, y_example, y_pred, a1, a2, b1, b2, b3, W1, W2, W3,
+                                                          learning_rate)
+            W1_sum += dW1
+            W2_sum += dW2
+            W3_sum += dW3
+            b1_sum += db1
+            b2_sum += db2
+            b3_sum += db3
         if epoch % 100 == 0:
-            print(f"Epoch {epoch}, Loss: {loss}")
+            loss_sum = loss_sum / X.shape[0]
+            ic(loss_sum.mean())
 
-        W1, b1, W2, b2, W3, b3 = backward_propagation(X, y, y_pred, a1, a2, b1, b2, b3, W1, W2, W3, learning_rate)
+        W1 -= (W1_sum / X.shape[0]) * learning_rate
+        W2 -= (W2_sum / X.shape[0]) * learning_rate
+        W3 -= (W3_sum / X.shape[0]) * learning_rate
+        b3 -= (b3_sum / X.shape[0]) * learning_rate
+        b2 -= (b2_sum / X.shape[0]) * learning_rate
+        b1 -= (b1_sum / X.shape[0]) * learning_rate
 
     return W1, b1, W2, b2, W3, b3
 
 
-hidden_layer_size1 = 20
-hidden_layer_size2 = 20
+hidden_layer_size1 = 66
+hidden_layer_size2 = 66
 
-W1 = np.random.randn(images.shape[1], hidden_layer_size1)
-b1 = np.zeros((1, hidden_layer_size1))
+W1 = np.random.randn(images.shape[1], hidden_layer_size1).T
+b1 = np.zeros((hidden_layer_size1, 1))
 
-W2 = np.random.randn(hidden_layer_size1, hidden_layer_size2)
-b2 = np.zeros((1, hidden_layer_size2))
+W2 = np.random.randn(hidden_layer_size1, hidden_layer_size2).T
+b2 = np.zeros((hidden_layer_size2, 1))
 
-W3 = np.random.randn(hidden_layer_size2, one_hot_labels.shape[1])
-b3 = np.zeros((1, one_hot_labels.shape[1]))
+W3 = np.random.randn(hidden_layer_size2, 33).T
+b3 = np.zeros((33, 1))
 
-W1, b1, W2, b2, W3, b3 = train_network(images, one_hot_labels, W1, b1, W2, b2, W3, b3)
+W1, b1, W2, b2, W3, b3 = train_network(images, labels, W1, b1, W2, b2, W3, b3)
 
 
 def predict_character(image_path, W1, b1, W2, b2, W3, b3):
@@ -121,23 +122,27 @@ def predict_character(image_path, W1, b1, W2, b2, W3, b3):
     img = img.resize((28, 28))
     img_array = np.array(img)
     img_array = img_array.reshape(1, -1) / 255.0
+    img_array = img_array.T
 
-    z1 = np.dot(img_array, W1) + b1
+    z1 = np.dot(W1, img_array) + b1
     a1 = sigmoid(z1)
 
-    z2 = np.dot(a1, W2) + b2
+    z2 = np.dot(W2, a1) + b2
     a2 = sigmoid(z2)
 
-    z3 = np.dot(a2, W3) + b3
-    y_pred = softmax(z3)
+    z3 = np.dot(W3, a2) + b3
+    a3 = sigmoid(z3)
 
-    predicted_class = np.argmax(y_pred)
-    return predicted_class
+    prediction = a3.argmax()
+
+    return prediction
 
 
-def draw_and_predict(image_path, W1, b1, W2, b2, W3, b3, labels):
+def draw_and_predict(image_path, W1, b1, W2, b2, W3, b3):
     predicted_class = predict_character(image_path, W1, b1, W2, b2, W3, b3)
-    predicted_character = labels[predicted_class]
+    ic(predicted_class)
+    predicted_character = alphabet[predicted_class]
+    ic(predicted_character)
 
     img = Image.open(image_path)
     plt.imshow(img)
@@ -146,7 +151,6 @@ def draw_and_predict(image_path, W1, b1, W2, b2, W3, b3, labels):
     plt.show()
 
 
-# generate new label in "templateCreator.py" and put its path on image_to_predict
-image_to_predict = './predict/k.png'
-draw_and_predict(image_to_predict, W1, b1, W2, b2, W3, b3, labels_for_prediction)
-# kakovata huya recognising only "І" and "Є"
+image_to_predict = './predict/t.png'
+draw_and_predict(image_to_predict, W1, b1, W2, b2, W3, b3)
+
