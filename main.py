@@ -16,7 +16,7 @@ for filename in os.listdir(image_dir):
     img_path = os.path.join(image_dir, filename)
     # in './data/{images}' dataset ".png" format
     if img_path.endswith('.png') or img_path.endswith('.jpg'):
-        img = Image.open(img_path).convert('L')
+        img = Image.open(img_path).convert('P')
         img = img.resize((28, 28))
         img_array = np.array(img)
         images.append(img_array)
@@ -24,31 +24,42 @@ for filename in os.listdir(image_dir):
         labels.append(label)
 
 images = np.array(images)
+images = images.reshape(images.shape[0], -1) / 255.0
+ic(images.shape)
+
 labels = np.array(labels)
 ic(labels.shape)
 
-encoded_labels = np.arange(labels.shape[0])
-one_hot_labels = np.eye(labels.shape[0])[encoded_labels]
+encoded_labels = {label: idx for idx, label in enumerate(np.unique(labels))}
+num_classes = len(encoded_labels)
+
+# Convert labels to encoded format
+encoded_y = np.array([encoded_labels[label.split('-')[0]] for label in labels])
+
+# One-hot encode labels
+one_hot_labels = np.eye(num_classes)[encoded_y]
 ic(one_hot_labels.shape)
 
-images = images / 255.0
-images = images.reshape(images.shape[0], -1)
-ic(images.shape)
+X_train, X_test, y_train, y_test = train_test_split(images, one_hot_labels, test_size=0.2)
 
-X_train, X_test, y_train, y_test = train_test_split(images, one_hot_labels, test_size=0.2, random_state=42)
+ic(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
+
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
+
 def softmax(x):
     exp_scores = np.exp(x - np.max(x, axis=1, keepdims=True))
     return exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+
 
 def cross_entropy_loss(y, y_pred):
     m = y.shape[0]
     log_prob = -np.log(y_pred[range(m), np.argmax(y, axis=1)])
     loss = np.sum(log_prob) / m
     return loss
+
 
 def backward_propagation(X, y, y_pred, a1, b1, W1, W3, b3, learning_rate=0.01):
     m = y.shape[0]
@@ -64,7 +75,8 @@ def backward_propagation(X, y, y_pred, a1, b1, W1, W3, b3, learning_rate=0.01):
     b3 -= learning_rate * db3
     return W1, b1, W3, b3
 
-def train_network(X_train, y_train, X_test, y_test, W1, b1, W3, b3, num_epochs=501, learning_rate=0.01):
+
+def train_network(X_train, y_train, X_test, y_test, W1, b1, W3, b3, num_epochs=501, learning_rate=0.0001):
     train_losses, test_losses = [], []
     for epoch in range(num_epochs):
         # Forward propagation for training data
@@ -96,18 +108,18 @@ def train_network(X_train, y_train, X_test, y_test, W1, b1, W3, b3, num_epochs=5
     return W1, b1, W3, b3, train_losses, test_losses
 
 # Continue with the training using X_train, y_train, X_test, y_test
-hidden_layer_size = 20
+hidden_layer_size = 50
 
 W1 = np.random.randn(X_train.shape[1], hidden_layer_size)
 b1 = np.zeros((1, hidden_layer_size))
 
-W3 = np.random.randn(hidden_layer_size, y_train.shape[1])
-b3 = np.zeros((1, y_train.shape[1]))
+W3 = np.random.randn(hidden_layer_size, num_classes)
+b3 = np.zeros((1, num_classes))
 
 W1, b1, W3, b3, train_losses, test_losses = train_network(X_train, y_train, X_test, y_test, W1, b1, W3, b3)
 
 def predict_new_image(image_path, W1, b1, W3, b3, labels):
-    img = Image.open(image_path).convert('L')
+    img = Image.open(image_path).convert('P')
     img = img.resize((28, 28))
     img_array = np.array(img)
     img_array = img_array.reshape(1, -1) / 255.0
@@ -125,5 +137,5 @@ def predict_new_image(image_path, W1, b1, W3, b3, labels):
 # Path to the new image you want to predict
 new_image_path = './predict/о.png'
 
-predicted_character = predict_new_image(new_image_path, W1, b1, W3, b3, labels)
-print(f"Predicted Character for the New Image: {predicted_character}")
+predicted_character = predict_new_image(new_image_path, W1, b1, W3, b3, list(encoded_labels.keys()))
+ic(predicted_character)
