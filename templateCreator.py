@@ -37,7 +37,8 @@ class PaintBox:
     def save_image(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")])
         if file_path:
-            self.image.save(file_path)
+            resized_image = self.image.resize((28, 28))
+            resized_image.save(file_path)
 
     def clear_canvas(self):
         self.canvas.delete("all")
